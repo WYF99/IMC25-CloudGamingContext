@@ -1,0 +1,91 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io/fs"
+	"os"
+	"path"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+func dataMain(basePath string) {
+	var filePath, outPath string
+
+	// Create a semaphore with a capacity of 24 to limit the number of concurrent goroutines
+	semaphore := make(chan struct{}, 24)
+	var wg sync.WaitGroup
+
+	err := filepath.WalkDir(basePath, func(path string, d fs.DirEntry, err error) error {
+		// check for pcapng files
+		if filepath.Ext(path) == ".pcapng" && !strings.Contains(path, "videoStream") {
+			if err != nil {
+				fmt.Println("Error walking the path:", err)
+				return err
+			}
+
+			filePath = path
+			outPath = strings.Replace(path, ".pcapng", "_packetStats.json", 1)
+			// Check if the output file already exists
+			if _, err := os.Stat(outPath); err == nil {
+				fmt.Printf("Output file %s already exists, skipping...\n", outPath)
+				return nil
+			}
+
+			// Acquire a token from the semaphore before starting a new goroutine
+			semaphore <- struct{}{}
+			wg.Add(1)
+			go func(filePath, outPath string) {
+				defer wg.Done()
+				defer func() { <-semaphore }() // Release the token back to the semaphore when done
+				ExtractPacketStats(filePath, outPath, 0)
+				// Repeat for videoStream only
+				videoStreamFilePath := strings.Replace(path, ".pcapng", "_videoStream.pcapng", 1)
+				// Check if the video stream file already exists
+				if _, err := os.Stat(videoStreamFilePath); os.IsNotExist(err) {
+					videoStreamOutPath := strings.Replace(path, ".pcapng", "packetStats_videoStream.json", 1)
+					ExtractPacketStats(videoStreamFilePath, videoStreamOutPath, 0)
+					fmt.Printf("Extracting video stream stats from %s to %s\n", videoStreamFilePath, videoStreamOutPath)
+				}
+			}(filePath, outPath)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Println("Error walking the path:", err)
+		return
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+}
+
+func dataAllMain(basePath string) {
+	deviceFolders, _ := os.ReadDir(basePath)
+	for _, device := range deviceFolders {
+		// check if the folder is a directory
+		if !device.IsDir() {
+			continue
+		}
+		devicePath := path.Join(basePath, device.Name())
+		softwareFolders, _ := os.ReadDir(devicePath)
+		for _, software := range softwareFolders {
+			if !software.IsDir() {
+				continue
+			}
+			softwarePath := path.Join(devicePath, software.Name())
+			// run dataMain for each software folder
+			dataMain(softwarePath)
+		}
+	}
+}
+
+func main() {
+	var basePath string
+	flag.StringVar(&basePath, "p", "../data/", "Base path to the data directory")
+	flag.Parse()
+
+	dataAllMain(basePath)
+}
