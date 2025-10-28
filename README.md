@@ -13,6 +13,7 @@ In Proc. ACM Internet Measurement Conference (IMC), Madison, WI, USA, 2025
   year = {2025},
   month = oct,
   address = {Madison, WI, USA},
+  doi = {10.1145/3730567.3764455},
 }
 ```
 ---
