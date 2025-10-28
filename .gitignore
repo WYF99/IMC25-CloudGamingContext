@@ -1,0 +1,7 @@
+.vscode/
+.idea/
+data/
+*.pcapng
+*.pcap
+*.json
+*.csv

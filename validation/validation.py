@@ -7,11 +7,11 @@ import os
 import subprocess
 import re
 import sys
+import argparse
 from collections import defaultdict
 import time
 
 # Configuration 
-ROOT_DIR = '../data_masters'  # Change to where the dataset is actually located
 CAPINFOS_PATH = "capinfos.exe" # Change to the actual path of capinfos executable (usually in the same directory as Wireshark)
                            
 
@@ -192,6 +192,10 @@ def print_summary(results):
 
 
 if __name__ == "__main__":
-    summary_results = analyze_pcapng_files(ROOT_DIR)
+    parser = argparse.ArgumentParser(description='Validate cloud gaming dataset by analyzing pcap/pcapng files')
+    parser.add_argument('-p', '--path', type=str, default='../data/', help='Base path to the data directory (default: ../data/)')
+    args = parser.parse_args()
+    
+    summary_results = analyze_pcapng_files(args.path)
     if summary_results:
         print_summary(summary_results)
